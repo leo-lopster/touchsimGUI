@@ -62,7 +62,7 @@ Double-click `TouchSimGUI.bat` in the project folder. The script will:
    ```
 
 ## Using the GUI
-![Interface Capabilities](touchsimGUI.jpg)
+![Interface Capabilities](TouchsimGUI.jpg)
 *Note: Figure updated 4 Jan 2026.*
 
 ### GUI Components Guide
