@@ -1,0 +1,11 @@
+name: tsgui
+
+dependencies:
+  - python>=3.6
+  - numpy>=1.13
+  - scipy
+  - scikit-image
+  - numba>=0.34
+  - matplotlib>=2.2.2
+  - pyqt5
+  - pandas
