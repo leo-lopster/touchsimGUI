@@ -24,7 +24,7 @@ class ModelIdxSelector(QWidget):
     def update_for_afferent(self, afferent_type):
         """
         Rebuild model idx list when afferent type changes
-        afferent_type: "SA1", "RA", or "PC"
+        afferent_type: "SA1", "RA", "PC", "PROP", or "HAIR"
         """
         self.combo.clear()
         self.current_afferent_type = afferent_type
@@ -40,7 +40,9 @@ class ModelIdxSelector(QWidget):
         models = {
             "SA1": list(range(len(constants.affparamsSA))),
             "RA": list(range(len(constants.affparamsRA))),
-            "PC": list(range(len(constants.affparamsPC)))
+            "PC": list(range(len(constants.affparamsPC))),
+            "PROP": list(range(len(constants.affparamsPROP))),
+            "HAIR": list(range(len(constants.affparamsHAIR))),
             }
 
         self.combo.setEnabled(True)

@@ -28,7 +28,7 @@ SITES = {
     "Palm (Pp)": ["Pp1_p", "Pp2_p"]
 }
 
-AFFERENTS = ["PC", "RA", "SA1"]
+AFFERENTS = ["PC", "RA", "SA1", "PROP", "HAIR"]
 
 # ------------------------------------------------------------
 # Data Classes
@@ -104,6 +104,9 @@ class TouchSimApp(QWidget):
         load_btn = QPushButton("Import CSV")
         load_btn.clicked.connect(self.load_csv)
 
+        remove_btn = QPushButton("Remove All CSVs")
+        remove_btn.clicked.connect(self.clear_loaded_csvs)
+
         self.csv_list = QListWidget() # Loaded CSV List
         self.csv_list.setSelectionMode(QListWidget.SingleSelection)
         # Plot graphs when selection changes
@@ -112,11 +115,16 @@ class TouchSimApp(QWidget):
         def plot_selected():
             selected_row = self.csv_list.currentRow()
             csv_data = self.loaded_csvs[selected_row]
-            self.stim_canvas.plot_graph(
-                time=csv_data.df["time"],
-                amplitude=csv_data.df["amplitude"],
-                title=f"Stimulation - {csv_data.name}"
-            )
+            try:
+                self.stim_canvas.plot_graph(
+                    time=csv_data.df["time"],
+                    amplitude=csv_data.df["amplitude"],
+                    title=f"Stimulation - {csv_data.name}"
+                )
+            except Exception as e:
+                QMessageBox.critical(self, "Column Name Error", f"{e} column not found in dataset.")
+                return
+        
             # If a response exists for this stimulus, show its PSTH preview
             try:
                 if hasattr(self, 'all_responses') and csv_data.name in self.all_responses:
@@ -131,6 +139,7 @@ class TouchSimApp(QWidget):
                 pass
 
         csv_layout.addWidget(load_btn)
+        csv_layout.addWidget(remove_btn)
         csv_layout.addWidget(self.csv_label)
         csv_layout.addWidget(self.csv_list)
         csv_group.setLayout(csv_layout)
@@ -254,6 +263,14 @@ class TouchSimApp(QWidget):
             self.loaded_csvs[self.csv_list.row(i)]
             for i in items
         ]
+    
+    def clear_loaded_csvs(self):
+        if not self.loaded_csvs:
+            return
+        else:
+            self.csv_list.clear()
+            self.loaded_csvs.clear()
+            self.csv_label.setText("Removed loaded files.")
 
     # --------------------------------------------------------
     # Plot Stimulation Profile

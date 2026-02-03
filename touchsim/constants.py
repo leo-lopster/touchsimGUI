@@ -1,9 +1,9 @@
 import numpy as np
 
-affclasses = ['SA1','RA','PC']
+affclasses = ['SA1','RA','PC','PROP','HAIR']
 
 # Afferent depths in skin
-affdepths = {'SA1':.3,'RA':1.6,'PC':2.}
+affdepths = {'SA1':.3,'RA':1.6,'PC':2.,'PROP':1.6,'HAIR':1.6}
 
 # SA1 parameters
 affparamsSA = np.array([[10.1317138671875, 0.43464779718507762, -0.3183095561981179,
@@ -79,10 +79,24 @@ affparamsPC = np.array([[27.50213623046875, 0., 0., -257.79678911169367, -185.65
                     4.7331220358610153, -6.1505432367324815, -0.2100401371717453,
                     3.6196996516799924]])
 
-# parameters dictionary
-affparams = {'SA1':affparamsSA,'RA':affparamsRA,'PC':affparamsPC}
+# PROP parameters (muscle spindle-like, based on RA)
+affparamsPROP = np.copy(affparamsRA)
 
-affcol = {'SA1':[0.1961,0.6275,0.1569],'RA':[0.1176,0.4706,0.7059],'PC':[1.0000,0.4980,0.]}
+for i in range(len(affparamsPROP)):
+   affparamsPROP[i, 7] = 0.    # Modified parameter 8
+   affparamsPROP[i, 9] = 2.92  # Modified parameter 10
+
+# HAIR parameters (hair follicle-like, based on RA)
+affparamsHAIR = np.copy(affparamsRA)
+
+for i in range(len(affparamsHAIR)):
+   affparamsHAIR[i, 7] = 0.    # Modified parameter 8
+   affparamsHAIR[i, 9] = 4.60  # Modified parameter 10
+
+# parameters dictionary
+affparams = {'SA1':affparamsSA,'RA':affparamsRA,'PC':affparamsPC,'PROP':affparamsPROP,'HAIR':affparamsHAIR}
+
+affcol = {'SA1':[0.1961,0.6275,0.1569],'RA':[0.1176,0.4706,0.7059],'PC':[1.0000,0.4980,0.],'PROP':[0.8,0.2,0.2],'HAIR':[0.2,0.8,0.2]}
 
 # IH basis
 ihbasis = np.array([[1., 0.96225940969727608, 0.87536423208046354, 0.766769433248516, 0.652610209235263,
