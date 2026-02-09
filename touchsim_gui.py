@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from matplotlib.backends.backend_pdf import PdfPages
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QListWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
-    QLabel, QPushButton, QGroupBox, QMessageBox, QSizePolicy, QDoubleSpinBox
+    QLabel, QPushButton, QGroupBox, QMessageBox, QSizePolicy, QDoubleSpinBox, QCheckBox, QComboBox
 )
 
 ### LOCAL DEPENDENCIES
@@ -63,6 +63,19 @@ class TouchSimApp(QWidget):
     # DEBUG LOGGER
     def log(self, msg):
         print(f"{self.current_time()[-13:-5]} -> {msg}")
+
+    # Calculate max timespan from loaded stimuli
+    def calculate_timespan(self):
+        """Calculate the maximum timespan from all loaded stimuli."""
+        if not self.loaded_csvs:
+            return 1.0  # Default value
+        
+        max_time = 0.0
+        for stim_data in self.loaded_csvs:
+            if "time" in stim_data.df.columns:
+                max_time = max(max_time, stim_data.df["time"].max())
+        
+        return max_time if max_time > 0 else 1.0
 
     # --------------------------------------------------------
     # Build UI
@@ -147,11 +160,29 @@ class TouchSimApp(QWidget):
         # Simulation button
         sim_btn = QPushButton("Generate Afferent Response")
         sim_btn.clicked.connect(self.generate_response)
+        
+        # Multi-model export group
+        model_export_group = QGroupBox("Export All Models")
+        model_export_layout = QVBoxLayout()
+        
+        # Checkboxes for model selection
+        self.model_checkboxes = {}
+        for aff_type in AFFERENTS:
+            checkbox = QCheckBox(aff_type)
+            checkbox.setChecked(True)  # Enable all by default
+            self.model_checkboxes[aff_type] = checkbox
+            model_export_layout.addWidget(checkbox)
+        
+        # Multi-model export button
+        multi_export_btn = QPushButton("Export All Selected Models")
+        multi_export_btn.clicked.connect(self.export_all_models)
+        highlight_button(multi_export_btn, color="blue")
+        model_export_layout.addWidget(multi_export_btn)
+        model_export_group.setLayout(model_export_layout)
     
         # Export button
         self.export_btn = QPushButton("Export Response")
         self.export_btn.clicked.connect(self.export_response)
-        highlight_button(self.export_btn) # add highlight to the button
         disable_button(self.export_btn)
 
         # Add all widgets
@@ -173,7 +204,7 @@ class TouchSimApp(QWidget):
         left_panel.addLayout(bin_layout)
         left_panel.addWidget(sim_btn)
         left_panel.addWidget(self.export_btn)
-        
+        left_panel.addWidget(model_export_group)
         left_panel.addStretch()
         layout.addLayout(left_panel, 1) # Width Ratio
         
@@ -185,7 +216,8 @@ class TouchSimApp(QWidget):
         stim_plot_group = QGroupBox("Stimulation Profile")
         stim_plot_layout = QVBoxLayout()
 
-        self.stim_canvas = MplCanvas()
+        timespan = self.calculate_timespan()
+        self.stim_canvas = MplCanvas(timespan)
         self.stim_canvas.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Expanding
@@ -197,14 +229,14 @@ class TouchSimApp(QWidget):
         resp_plot_group = QGroupBox("Response Profile")
         resp_plot_layout = QVBoxLayout()
 
-        self.resp_canvas = MplCanvas()
+        self.resp_canvas = MplCanvas(timespan)
         resp_plot_layout.addWidget(self.resp_canvas)
         resp_plot_group.setLayout(resp_plot_layout)
 
         # PSTH Plot panel
         psth_plot_group = QGroupBox("PSTH")
         psth_plot_layout = QVBoxLayout()
-        self.psth_canvas = MplCanvas()
+        self.psth_canvas = MplCanvas(timespan)
         psth_plot_layout.addWidget(self.psth_canvas)
         psth_plot_group.setLayout(psth_plot_layout)
 
@@ -256,6 +288,12 @@ class TouchSimApp(QWidget):
             self.csv_label.setText("Files loaded:")
         for stim_csv in self.loaded_csvs:
             self.csv_list.addItem(stim_csv.name)
+        
+        # Update canvas timespan based on loaded stimuli
+        timespan = self.calculate_timespan()
+        self.stim_canvas.timespan = timespan
+        self.resp_canvas.timespan = timespan
+        self.psth_canvas.timespan = timespan
 
     def get_loaded_csvs(self):
         items = self.csv_list.selectedItems()
@@ -382,8 +420,142 @@ class TouchSimApp(QWidget):
             pass
 
         # Enable export
-        enable_button(self.export_btn, highlight=True)
+        enable_button(self.export_btn, highlight=True, color="green")
         self.all_responses = responses
+
+    def export_all_models(self):
+        """Generate responses for all selected afferent models (individually) and export results."""
+        if len(self.loaded_csvs) == 0:
+            QMessageBox.warning(self, "No CSV", "Please import stimulation CSV first.")
+            return
+
+        # Get selected afferent types from checkboxes
+        selected_afferents = [
+            aff_type for aff_type, checkbox in self.model_checkboxes.items()
+            if checkbox.isChecked()
+        ]
+
+        if not selected_afferents:
+            QMessageBox.warning(self, "No Models Selected", "Select at least one model type.")
+            return
+
+        self.log(f"Generating responses for selected models: {selected_afferents}")
+
+        # Ask user for export path
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Multi-Model Export", "", "CSV Files (*.csv)"
+        )
+        if not out_path:
+            return
+
+        base_dir = os.path.dirname(out_path)
+        base_name = os.path.splitext(os.path.basename(out_path))[0]
+
+        # Track exported models for logging
+        exported_models = []
+
+        # Generate responses for each selected afferent type and each model index
+        for aff_type in selected_afferents:
+            self.log(f"Processing {aff_type} models")
+            
+            # Try to find all available model indices for this afferent type
+            model_idx = 0
+            while True:
+                try:
+                    # Try to create an afferent with this index to check if it exists
+                    test_aff = ts.Afferent(affclass=aff_type, idx=model_idx)
+                    
+                    # Generate responses for all stimuli with this specific model
+                    responses: dict[str, ts.Response] = {}
+                    model_label = f"{aff_type}{model_idx}"
+                    
+                    for stim_data in self.loaded_csvs:
+                        # Create afferent with specific model index
+                        a = ts.Afferent(affclass=aff_type, idx=model_idx)
+                        
+                        # Get stimulus data
+                        stim_df = stim_data.df
+                        stim_name = stim_data.name
+                        
+                        try:
+                            stimulus_timestamp = stim_df.get("time").to_numpy()
+                            stimulus_trace = stim_df.get("amplitude").to_numpy()
+                            
+                            if len(stimulus_timestamp) <= 1:
+                                continue
+                            
+                            sampling_freq = 1 / (float(stimulus_timestamp[1]) - float(stimulus_timestamp[0]))
+                            s = ts.Stimulus(trace=stimulus_trace, fs=sampling_freq)
+                            r = a.response(s)
+                            responses[stim_name] = r
+                        except Exception as e:
+                            self.log(f"Warning: Could not generate response for {stim_name} with {model_label}: {e}")
+                            continue
+                    
+                    # Export spike series data for this model
+                    if responses:
+                        try:
+                            spike_series_list = [
+                                pd.Series(resp.spikes[0], name=name)
+                                for name, resp in responses.items()
+                            ]
+                            spike_series_df = pd.concat(spike_series_list, axis=1)
+                            spike_path = os.path.join(base_dir, f"{base_name}_{model_label}.csv")
+                            spike_series_df.to_csv(spike_path, index=False)
+                            self.log(f"Exported spike data for {model_label} to: {spike_path}")
+                            exported_models.append(model_label)
+                        except Exception as e:
+                            self.log(f"Warning: Could not export spike series for {model_label}: {e}")
+                        
+                        # Export PSTH data for this model
+                        try:
+                            bin_size = self.psth_bin_size
+                            
+                            # Calculate average spikes per ms across all stimuli for this model
+                            all_spike_densities = []
+                            for name, response in responses.items():
+                                spike_counts = np.sum(response.psth(bin=bin_size), axis=0)
+                                spike_densities = spike_counts / bin_size
+                                all_spike_densities.append(spike_densities)
+                            
+                            # Calculate average for each bin
+                            max_bins = max(len(densities) for densities in all_spike_densities)
+                            avg_spike_per_bin = []
+                            for bin_idx in range(max_bins):
+                                bin_values = [
+                                    densities[bin_idx] for densities in all_spike_densities
+                                    if bin_idx < len(densities)
+                                ]
+                                avg_spike_per_bin.append(np.mean(bin_values))
+                            
+                            # Create DataFrame with individual and average data
+                            psth_df = pd.DataFrame()
+                            psth_df["Average"] = avg_spike_per_bin
+                            
+                            for name, response in responses.items():
+                                spike_counts = np.sum(response.psth(bin=bin_size), axis=0)
+                                spike_densities = spike_counts / bin_size
+                                psth_df[name] = spike_densities
+                            
+                            psth_path = os.path.join(base_dir, f"{base_name}_{model_label}_PSTH.csv")
+                            psth_df.to_csv(psth_path, index=False)
+                            self.log(f"Exported PSTH data for {model_label} to: {psth_path}")
+                        except Exception as e:
+                            self.log(f"Warning: Could not export PSTH for {model_label}: {e}")
+                    
+                    model_idx += 1
+                    
+                except Exception:
+                    # No more models available for this afferent type
+                    break
+
+        if exported_models:
+            message = f"Multi-model export completed.\nExported {len(exported_models)} models:\n"
+            message += ", ".join(exported_models)
+            message += f"\n\nFiles saved to:\n{base_dir}"
+            QMessageBox.information(self, "Export Complete", message)
+        else:
+            QMessageBox.warning(self, "Export Failed", "No models were successfully exported.")
     
     # --------------------------------------------------------
     # Export TouchSim Response
@@ -450,8 +622,8 @@ class TouchSimApp(QWidget):
         self.log(f"Spike data exported to: {psth_path}")
 
         # Export spike graphs and PSTH plots
-        
-        temp_canvas = MplCanvas()
+        timespan = self.calculate_timespan()
+        temp_canvas = MplCanvas(timespan)
         
         # Create a combined PDF with spike raster and PSTH plots
         pdf_path = os.path.join(base_dir, f"{base_name}_graphs.pdf")

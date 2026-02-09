@@ -11,9 +11,10 @@ import numpy as np
 # ------------------------------------------------------------
 
 class MplCanvas(FigureCanvas):
-    def __init__(self):
+    def __init__(self, timespan):
         self.fig = Figure(figsize=(4, 3), dpi=100)
         self.ax = self.fig.add_subplot(111)
+        self.timespan = timespan
         super().__init__(self.fig)
 
     def plot_graph(self, time, amplitude, title="Unnamed Graph"):
@@ -22,6 +23,7 @@ class MplCanvas(FigureCanvas):
         self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Amplitude (mm)")
         self.ax.set_title(title)
+        self.ax.set_xlim(0, self.timespan)
         self.ax.grid(True)
         self.draw()
 
@@ -39,7 +41,7 @@ class MplCanvas(FigureCanvas):
         
         self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Neuron Index")
-        self.ax.set_xlim(bin[0], bin[1])
+        self.ax.set_xlim(0, self.timespan)
         self.ax.set_title(title)
         self.ax.grid(True)
         self.draw()
@@ -54,6 +56,7 @@ class MplCanvas(FigureCanvas):
                 label=stim.name
             )
 
+        self.ax.set_xlim(0, self.timespan)
         self.ax.legend()
         self.draw()
 
@@ -89,7 +92,7 @@ class MplCanvas(FigureCanvas):
 
         self.ax.set_xlabel("Time (s)")
         self.ax.set_ylabel("Stimulus Index")
-        self.ax.set_xlim(0, None)
+        self.ax.set_xlim(0, self.timespan)
         self.ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
         self.ax.set_title(title)
         self.ax.grid(True)
@@ -129,7 +132,7 @@ class MplCanvas(FigureCanvas):
             self.ax.set_xlabel("Time (s)")
             self.ax.set_ylabel("Spikes per ms")
             self.ax.set_title(title)
-            self.ax.set_xlim(bin_edges[0], bin_edges[-1])
+            self.ax.set_xlim(0, self.timespan)
             self.ax.grid(True, alpha=0.3, axis='y')
 
         except Exception as e:
@@ -189,7 +192,7 @@ class MplCanvas(FigureCanvas):
             self.ax.set_xlabel("Time (s)")
             self.ax.set_ylabel("Average Spikes per ms")
             self.ax.set_title(title)
-            self.ax.set_xlim(bin_edges[0], bin_edges[-1])
+            self.ax.set_xlim(0, self.timespan)
             self.ax.grid(True, alpha=0.3, axis='y')
 
         except Exception as e:
